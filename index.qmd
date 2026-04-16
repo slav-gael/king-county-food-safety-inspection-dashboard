@@ -1,0 +1,149 @@
+---
+title: "STAT-408 Final Project"
+format: dashboard
+---
+
+# Dataset Overview
+
+This dashboard explores the King County Food Establishment Inspection dataset.  
+Each row of the original dataset represents an inspection of a food establishment, 
+including its score, result (Satisfactory/Unsatisfactory), location, and any 
+violations recorded.
+
+We aim to understand:
+
+* How often inspections fail
+* Where in King County food safety issues are concentrated
+* What factors are associated with poor inspection outcomes
+
+A food safety rating of 0 is best. The classification of "Excellent", "Good",
+and "Okay" depends on both the rating, the Food Service Establishment Risk Level,
+and the timeframe of inspections being taken into account. An in-depth explanation of what goes into a restaurant's
+rating can be found at the official King County department of public health 
+website found [here](https://kingcounty.gov/en/dept/dph/health-safety/food-safety/inspection-rating-system/rating-system
+)
+
+## Row {height=40%}
+```{r}
+#| warning: false
+#| message: false
+#| fig-height: 8
+#| fig-width: 16
+
+library(ggplot2)
+library(tidyverse)
+
+inspection <- read.csv("Food_Establishment_Inspection_Data.csv")
+
+# Cleaning
+inspection_clean <- inspection |>
+  mutate(
+    # Normalize text fields 
+    Address = str_trim(str_to_upper(Address)),
+    Name = str_trim(str_to_upper(Name)),
+    
+    Inspection.Score = as.numeric(Inspection.Score),
+    Inspection.Date = as.Date(Inspection.Date, "%m/%d/%Y"),
+    
+    # Binary variable for inspection which failed
+    failed = Inspection.Result == "Unsatisfactory"
+  )
+
+# Group inspection process issues
+inspection_clean <- inspection_clean |>
+  mutate(
+    result_group = case_when(
+      Inspection.Result == "Satisfactory" ~ "Satisfactory",
+      Inspection.Result == "Unsatisfactory" ~ "Unsatisfactory",
+      str_detect(Inspection.Result, "Not|Incomplete|No Longer") ~ "Inspection Issues",
+      TRUE ~ "Administrative"
+    )
+  )
+
+# Compute overall summary statistics
+summary_stats <- inspection_clean |>
+  summarise(
+    total_inspections = n(),
+    total_businesses = n_distinct(Address),
+    avg_score = mean(Inspection.Score, na.rm = TRUE),
+    failure_rate = mean(failed, na.rm = TRUE)
+  )
+# Count inspections by result type
+result_counts <- inspection_clean |>
+  count(result_group)
+
+# Histogram of inspection scores
+ggplot(inspection_clean, aes(x = Inspection.Score)) +
+  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
+  labs(
+    title = "Distribution of Inspection Scores",
+    x = "Inspection Score",
+    y = "Count"
+  )
+summary_stats
+```
+
+```{r}
+# Bar chart of inspection outcomes
+ggplot(result_counts, aes(x = result_group, y = n, fill = result_group)) +
+  geom_col() +
+  scale_fill_manual(values = c(
+    "Satisfactory" = "darkgreen",
+    "Unsatisfactory" = "red",
+    "Inspection Issues" = "orange",
+    "Administrative" = "gray"
+  )) +
+  labs(
+    title = "Inspection Outcomes (Grouped)",
+    x = "Result Category",
+    y = "Number of Inspections"
+  )
+```
+
+
+# Where Problems Occur
+
+This page explores the geographic distribution of food inspection results across King County.
+
+We focus on **failure rates** (proportion of unsatisfactory inspections) to identify 
+areas where food safety problems are more common.
+
+TODO: Overlay points on a map
+```{r}
+#| warning: false
+#| message: false
+
+# Ensure we only use valid inspections
+inspection_valid <- inspection_clean |>
+  filter(result_group %in% c("Satisfactory", "Unsatisfactory"))
+
+# Aggregate by ZIP code
+zip_summary <- inspection_valid |>
+  group_by("Zip Code") |>
+  summarise(
+    n_inspections = n(),
+    failure_rate = mean(failed, na.rm = TRUE),
+    avg_score = mean(Inspection.Score, na.rm = TRUE),
+    latitude = mean(Latitude, na.rm = TRUE),
+    longitude = mean(Longitude, na.rm = TRUE),
+    .groups = "drop"
+  ) |>
+  filter(n_inspections >= 30)  # remove very small sample sizes to help clean
+```
+
+```{r}
+#| warning: false
+#| message: false
+
+# Map of failure rates
+ggplot(inspection_valid, aes(x = Longitude, y = Latitude)) +
+  geom_point(aes(color = failed), alpha = 0.3, size = 1) +
+  scale_color_manual(values = c("TRUE" = "red", "FALSE" = "green")) +
+  labs(
+    title = "Inspection Outcomes by Location",
+    x = "Longitude",
+    y = "Latitude",
+    color = "Failed Inspection"
+  )
+```
+
