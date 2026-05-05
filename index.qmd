@@ -1,8 +1,50 @@
 ---
-title: "STAT-408 Final Project"
+title: "King County Food Establishment Safety"
 format: dashboard
 embed-resources: true
 ---
+
+```{r setup}
+#| include: false
+library(ggplot2)
+library(tidyverse)
+library(leaflet)
+library(DT)
+
+inspection <- read.csv("Food_Establishment_Inspection_Data.csv", stringsAsFactors = FALSE)
+
+# Cleaning
+inspection_clean <- inspection |>
+  mutate(
+    Address           = str_trim(str_to_upper(Address)),
+    Name              = str_trim(str_to_upper(Name)),
+    City_norm         = str_trim(str_to_upper(City)),
+    Inspection.Score  = as.numeric(Inspection.Score),
+    Inspection.Date   = as.Date(Inspection.Date, "%m/%d/%Y"),
+    Year              = year(Inspection.Date),
+    unsatisfactory    = Inspection.Result == "Unsatisfactory",
+    result_group = case_when(
+      Inspection.Result == "Satisfactory"   ~ "Satisfactory",
+      Inspection.Result == "Unsatisfactory" ~ "Unsatisfactory",
+      str_detect(Inspection.Result, "Not|Incomplete|No Longer") ~ "Inspection Issues",
+      TRUE ~ "Administrative"
+    )
+  )
+
+inspection_valid <- inspection_clean |>
+  filter(result_group %in% c("Satisfactory", "Unsatisfactory"))
+
+summary_stats <- inspection_clean |>
+  summarise(
+    total_inspections = n(),
+    total_businesses  = n_distinct(Business_ID),
+    avg_score         = mean(Inspection.Score, na.rm = TRUE),
+    unsatisfactory_rate      = mean(unsatisfactory, na.rm = TRUE)
+  )
+
+result_counts <- inspection_clean |>
+  count(result_group)
+```
 
 # Dataset Overview
 
@@ -13,7 +55,7 @@ violations recorded.
 
 We aim to understand:
 
-* How often inspections fail
+* How often inspections are unsatisfactory
 * Where in King County food safety issues are concentrated
 * What factors are associated with poor inspection outcomes
 
@@ -21,130 +63,224 @@ A food safety rating of 0 is best. The classification of "Excellent", "Good",
 and "Okay" depends on both the rating, the Food Service Establishment Risk Level,
 and the timeframe of inspections being taken into account. An in-depth explanation of what goes into a restaurant's
 rating can be found at the official King County department of public health 
-website found [here](https://kingcounty.gov/en/dept/dph/health-safety/food-safety/inspection-rating-system/rating-system
-)
+website found [here](https://kingcounty.gov/en/dept/dph/health-safety/food-safety/inspection-rating-system/rating-system).
 
-## Row {height=40%}
+## Row {height=15%}
+
 ```{r}
-#| warning: false
-#| message: false
-#| fig-height: 8
-#| fig-width: 16
-
-library(ggplot2)
-library(tidyverse)
-
-inspection <- read.csv("Food_Establishment_Inspection_Data.csv")
-
-# Cleaning
-inspection_clean <- inspection |>
-  mutate(
-    # Normalize text fields 
-    Address = str_trim(str_to_upper(Address)),
-    Name = str_trim(str_to_upper(Name)),
-    
-    Inspection.Score = as.numeric(Inspection.Score),
-    Inspection.Date = as.Date(Inspection.Date, "%m/%d/%Y"),
-    
-    # Binary variable for inspection which failed
-    failed = Inspection.Result == "Unsatisfactory"
-  )
-
-# Group inspection process issues
-inspection_clean <- inspection_clean |>
-  mutate(
-    result_group = case_when(
-      Inspection.Result == "Satisfactory" ~ "Satisfactory",
-      Inspection.Result == "Unsatisfactory" ~ "Unsatisfactory",
-      str_detect(Inspection.Result, "Not|Incomplete|No Longer") ~ "Inspection Issues",
-      TRUE ~ "Administrative"
-    )
-  )
-
-# Compute overall summary statistics
-summary_stats <- inspection_clean |>
-  summarise(
-    total_inspections = n(),
-    total_businesses = n_distinct(Address),
-    avg_score = mean(Inspection.Score, na.rm = TRUE),
-    failure_rate = mean(failed, na.rm = TRUE)
-  )
-# Count inspections by result type
-result_counts <- inspection_clean |>
-  count(result_group)
-
-# Histogram of inspection scores
-ggplot(inspection_clean, aes(x = Inspection.Score)) +
-  geom_histogram(bins = 30, fill = "steelblue", color = "black") +
-  labs(
-    title = "Distribution of Inspection Scores",
-    x = "Inspection Score",
-    y = "Count"
-  )
-summary_stats
+#| content: valuebox
+#| title: "Total Inspections"
+list(icon = "clipboard-check", color = "#0d6efd", value = format(summary_stats$total_inspections, big.mark = ","))
 ```
 
 ```{r}
-# Bar chart of inspection outcomes
-ggplot(result_counts, aes(x = result_group, y = n, fill = result_group)) +
-  geom_col() +
+#| content: valuebox
+#| title: "Unique Businesses"
+list(icon = "shop", color = "#0dcaf0", value = format(summary_stats$total_businesses, big.mark = ","))
+```
+
+```{r}
+#| content: valuebox
+#| title: "Overall Unsatisfactory Rate"
+list(icon = "exclamation-triangle", color = "#ffc107",
+     value = paste0(round(summary_stats$unsatisfactory_rate * 100, 1), "%"))
+```
+
+```{r}
+#| content: valuebox
+#| title: "Avg Inspection Score"
+list(icon = "bar-chart", color = "#dc3545",
+     value = round(summary_stats$avg_score, 1))
+```
+
+## Row {height=40%}
+
+```{r}
+#| title: "Distribution of Inspection Scores"
+#| warning: false
+#| message: false
+ggplot(inspection_clean |> filter(Inspection.Score >= 0, Inspection.Score <= 100),
+       aes(x = Inspection.Score)) +
+  geom_histogram(bins = 40, fill = "steelblue", color = "white", linewidth = 0.3) +
+  labs(x = "Inspection Score (0 = best)", y = "Count") +
+  theme_minimal()
+```
+
+```{r}
+#| title: "Inspection Outcomes"
+#| warning: false
+ggplot(result_counts, aes(x = reorder(result_group, n), y = n, fill = result_group)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
   scale_fill_manual(values = c(
-    "Satisfactory" = "darkgreen",
-    "Unsatisfactory" = "red",
-    "Inspection Issues" = "orange",
-    "Administrative" = "gray"
+    "Satisfactory"      = "#2ca02c",
+    "Unsatisfactory"    = "#d62728",
+    "Inspection Issues" = "#ff7f0e",
+    "Administrative"    = "#aec7e8"
   )) +
-  labs(
-    title = "Inspection Outcomes (Grouped)",
-    x = "Result Category",
-    y = "Number of Inspections"
-  )
+  scale_y_continuous(labels = scales::comma) +
+  labs(x = NULL, y = "Number of Inspections") +
+  theme_minimal()
 ```
 
 
 # Where Problems Occur
 
 This page explores the geographic distribution of food inspection results across King County.
+Each point represents an individual inspection record — **red = unsatisfactory, green = satisfcatory**.
 
-We focus on **failure rates** (proportion of unsatisfactory inspections) to identify 
-areas where food safety problems are more common.
-
-TODO: Overlay points on a map
 ```{r}
 #| warning: false
 #| message: false
+#| title: "King County Inspection Outcomes Map"
 
-# Ensure we only use valid inspections
-inspection_valid <- inspection_clean |>
-  filter(result_group %in% c("Satisfactory", "Unsatisfactory"))
+# Sample for performance; use all rows if rendering time allows
+set.seed(42)
+map_data <- inspection_valid |>
+  filter(!is.na(Latitude), !is.na(Longitude),
+         Latitude > 47.0, Latitude < 47.9,
+         Longitude > -122.6, Longitude < -121.7) |>
+  slice_sample(n = 15000)
 
-# Aggregate by ZIP code
-zip_summary <- inspection_valid |>
-  group_by("Zip Code") |>
+pal <- colorFactor(c("#d62728", "#2ca02c"), domain = c(TRUE, FALSE))
+
+leaflet(map_data) |>
+  addProviderTiles(providers$CartoDB.Positron) |>
+  setView(lng = -122.15, lat = 47.5, zoom = 10) |>
+  addCircleMarkers(
+    lng        = ~Longitude,
+    lat        = ~Latitude,
+    color      = ~pal(unsatisfactory),
+    radius     = 3,
+    stroke     = FALSE,
+    fillOpacity = 0.55,
+    popup = ~paste0(
+      "<b>", Name, "</b><br>",
+      Address, ", ", City, "<br>",
+      "Result: ", Inspection.Result, "<br>",
+      "Score: ", Inspection.Score, "<br>",
+      "Date: ", Inspection.Date
+    )
+  ) |>
+  addLegend("bottomright",
+            colors = c("#d62728", "#2ca02c"),
+            labels = c("Unsatisfactory", "Passed"),
+            title  = "Inspection Result",
+            opacity = 0.8)
+```
+
+
+# Unsatisfactory Rates by City & ZIP
+
+This page breaks down unsatisfactory result rates geographically,by city and by ZIP code. This identifies
+communities in King County with the highest concentration of food safety issues.
+
+## Row
+
+```{r}
+#| title: "Unsatisfactory Rate by City (≥ 200 inspections)"
+#| warning: false
+city_stats <- inspection_valid |>
+  group_by(City_norm) |>
   summarise(
     n_inspections = n(),
-    failure_rate = mean(failed, na.rm = TRUE),
-    avg_score = mean(Inspection.Score, na.rm = TRUE),
-    latitude = mean(Latitude, na.rm = TRUE),
-    longitude = mean(Longitude, na.rm = TRUE),
+    unsatisfactory_rate  = mean(unsatisfactory, na.rm = TRUE),
     .groups = "drop"
   ) |>
-  filter(n_inspections >= 30)  # remove very small sample sizes to help clean
+  filter(n_inspections >= 200) |>
+  arrange(desc(unsatisfactory_rate)) |>
+  slice_head(n = 20)
+
+ggplot(city_stats, aes(x = reorder(City_norm, unsatisfactory_rate), y = unsatisfactory_rate, fill = unsatisfactory_rate)) +
+  geom_col(show.legend = FALSE) +
+  coord_flip() +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 0.75)) +
+  scale_fill_gradient(low = "#fee08b", high = "#d62728") +
+  labs(x = NULL, y = "Unsatisfactory Rate") +
+  theme_minimal()
 ```
 
 ```{r}
+#| title: "ZIP Code Summary Table"
 #| warning: false
-#| message: false
+zip_table <- inspection_valid |>
+  mutate(Zip.Code = as.character(Zip.Code)) |>
+  group_by(Zip.Code) |>
+  summarise(
+    Inspections  = n(),
+    Unsatisfactory       = sum(unsatisfactory, na.rm = TRUE),
+    `Unsatisfactory Rate` = paste0(round(mean(unsatisfactory, na.rm = TRUE) * 100, 1), "%"),
+    `Avg Score`  = round(mean(Inspection.Score, na.rm = TRUE), 1),
+    .groups = "drop"
+  ) |>
+  filter(Inspections >= 50) |>
+  arrange(desc(Unsatisfactory))
 
-# Map of failure rates
-ggplot(inspection_valid, aes(x = Longitude, y = Latitude)) +
-  geom_point(aes(color = failed), alpha = 0.3, size = 1) +
-  scale_color_manual(values = c("TRUE" = "red", "FALSE" = "green")) +
-  labs(
-    title = "Inspection Outcomes by Location",
-    x = "Longitude",
-    y = "Latitude",
-    color = "Failed Inspection"
-  )
+datatable(zip_table,
+          options = list(pageLength = 12, scrollX = TRUE),
+          rownames = FALSE)
 ```
 
+# Trends Over Time
+
+How have inspection outcomes changed over the years? This page tracks unsatisfactory result rates 
+and inspection volumes over time across all of King County.
+
+## Row
+
+```{r}
+#| title: "Annual Unsatisfactory Rate Over Time"
+#| warning: false
+annual <- inspection_valid |>
+  filter(!is.na(Year), Year >= 2010, Year <= 2024) |>
+  group_by(Year) |>
+  summarise(
+    n_inspections = n(),
+    unsatisfactory_rate  = mean(unsatisfactory, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(annual, aes(x = Year, y = unsatisfactory_rate)) +
+  geom_line(color = "#d62728", linewidth = 1.2) +
+  geom_point(color = "#d62728", size = 2.5) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
+                     limits = c(0, NA)) +
+  scale_x_continuous(breaks = seq(2010, 2024, 2)) +
+  labs(x = "Year", y = "Unsatisfactory Rate") +
+  theme_minimal()
+```
+
+```{r}
+#| title: "Annual Inspection Volume"
+#| warning: false
+ggplot(annual, aes(x = Year, y = n_inspections)) +
+  geom_col(fill = "steelblue") +
+  scale_y_continuous(labels = scales::comma) +
+  scale_x_continuous(breaks = seq(2010, 2024, 2)) +
+  labs(x = "Year", y = "Number of Inspections") +
+  theme_minimal()
+```
+
+## Row
+
+```{r}
+#| title: "Unsatisfactory Rate by Month (All Years)"
+#| warning: false
+monthly <- inspection_valid |>
+  filter(!is.na(Inspection.Date)) |>
+  mutate(Month = month(Inspection.Date, label = TRUE, abbr = TRUE)) |>
+  group_by(Month) |>
+  summarise(
+    n_inspections = n(),
+    unsatisfactory_rate  = mean(unsatisfactory, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+ggplot(monthly, aes(x = Month, y = unsatisfactory_rate, group = 1)) +
+  geom_line(color = "#ff7f0e", linewidth = 1.2) +
+  geom_point(color = "#ff7f0e", size = 2.5) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(x = "Month", y = "Unsatisfactory Rate",
+       caption = "Aggregated across all years in the dataset") +
+  theme_minimal()
+```
