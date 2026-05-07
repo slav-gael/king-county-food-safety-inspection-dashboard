@@ -13,16 +13,21 @@ library(DT)
 
 inspection <- read.csv("Food_Establishment_Inspection_Data.csv", stringsAsFactors = FALSE)
 
-# Cleaning
+# Data Cleaning 
+
 inspection_clean <- inspection |>
   mutate(
-    Address           = str_trim(str_to_upper(Address)),
-    Name              = str_trim(str_to_upper(Name)),
-    City_norm         = str_trim(str_to_upper(City)),
-    Inspection.Score  = as.numeric(Inspection.Score),
-    Inspection.Date   = as.Date(Inspection.Date, "%m/%d/%Y"),
-    Year              = year(Inspection.Date),
-    unsatisfactory    = Inspection.Result == "Unsatisfactory",
+    Address          = str_trim(str_to_upper(Address)),
+    Name             = str_trim(str_to_upper(Name)),
+    City_norm        = str_trim(str_to_upper(City)),
+
+    Inspection.Score = as.numeric(Inspection.Score),
+    Inspection.Date  = as.Date(Inspection.Date, "%m/%d/%Y"),
+    Year             = year(Inspection.Date),
+
+    unsatisfactory = Inspection.Result == "Unsatisfactory",
+
+    # Collapse the many result values into four groups
     result_group = case_when(
       Inspection.Result == "Satisfactory"   ~ "Satisfactory",
       Inspection.Result == "Unsatisfactory" ~ "Unsatisfactory",
@@ -31,15 +36,16 @@ inspection_clean <- inspection |>
     )
   )
 
+# Keep only rows with a clear pass/fail
 inspection_valid <- inspection_clean |>
   filter(result_group %in% c("Satisfactory", "Unsatisfactory"))
 
 summary_stats <- inspection_clean |>
   summarise(
-    total_inspections = n(),
-    total_businesses  = n_distinct(Business_ID),
-    avg_score         = mean(Inspection.Score, na.rm = TRUE),
-    unsatisfactory_rate      = mean(unsatisfactory, na.rm = TRUE)
+    total_inspections   = n(),
+    total_businesses    = n_distinct(Business_ID),
+    avg_score           = mean(Inspection.Score, na.rm = TRUE),
+    unsatisfactory_rate = mean(unsatisfactory, na.rm = TRUE)
   )
 
 result_counts <- inspection_clean |>
@@ -98,6 +104,8 @@ list(icon = "bar-chart", color = "#dc3545",
 #| title: "Distribution of Inspection Scores"
 #| warning: false
 #| message: false
+
+# Cap at 100 to exclude extreme outliers
 ggplot(inspection_clean |> filter(Inspection.Score >= 0, Inspection.Score <= 100),
        aes(x = Inspection.Score)) +
   geom_histogram(bins = 40, fill = "steelblue", color = "white", linewidth = 0.3) +
@@ -126,32 +134,35 @@ ggplot(result_counts, aes(x = reorder(result_group, n), y = n, fill = result_gro
 # Where Problems Occur
 
 This page explores the geographic distribution of food inspection results across King County.
-Each point represents an individual inspection record — **red = unsatisfactory, green = satisfcatory**.
+Each point represents an individual inspection record — **red = unsatisfactory, green = satisfactory**.
 
 ```{r}
 #| warning: false
 #| message: false
 #| title: "King County Inspection Outcomes Map"
 
-# Sample for performance; use all rows if rendering time allows
 set.seed(42)
 map_data <- inspection_valid |>
-  filter(!is.na(Latitude), !is.na(Longitude),
-         Latitude > 47.0, Latitude < 47.9,
-         Longitude > -122.6, Longitude < -121.7) |>
-  slice_sample(n = 15000)
+  filter(
+    !is.na(Latitude), !is.na(Longitude),
+    # Filters out erroneous coordinates outside King County
+    Latitude  > 47.0, Latitude  < 47.9,
+    Longitude > -122.6, Longitude < -121.7
+  ) |>
+  slice_sample(n = 15000) # Sample to 15,000 rows for better visibility
 
+# Map true/false unsatisfactory value to red/green
 pal <- colorFactor(c("#d62728", "#2ca02c"), domain = c(TRUE, FALSE))
 
 leaflet(map_data) |>
   addProviderTiles(providers$CartoDB.Positron) |>
   setView(lng = -122.15, lat = 47.5, zoom = 10) |>
   addCircleMarkers(
-    lng        = ~Longitude,
-    lat        = ~Latitude,
-    color      = ~pal(unsatisfactory),
-    radius     = 3,
-    stroke     = FALSE,
+    lng         = ~Longitude,
+    lat         = ~Latitude,
+    color       = ~pal(unsatisfactory),
+    radius      = 3,
+    stroke      = FALSE,
     fillOpacity = 0.55,
     popup = ~paste0(
       "<b>", Name, "</b><br>",
@@ -162,16 +173,16 @@ leaflet(map_data) |>
     )
   ) |>
   addLegend("bottomright",
-            colors = c("#d62728", "#2ca02c"),
-            labels = c("Unsatisfactory", "Passed"),
-            title  = "Inspection Result",
+            colors  = c("#d62728", "#2ca02c"),
+            labels  = c("Unsatisfactory", "Passed"),
+            title   = "Inspection Result",
             opacity = 0.8)
 ```
 
 
 # Unsatisfactory Rates by City & ZIP
 
-This page breaks down unsatisfactory result rates geographically,by city and by ZIP code. This identifies
+This page breaks down unsatisfactory result rates geographically, by city and by ZIP code. This identifies
 communities in King County with the highest concentration of food safety issues.
 
 ## Row
@@ -179,18 +190,21 @@ communities in King County with the highest concentration of food safety issues.
 ```{r}
 #| title: "Unsatisfactory Rate by City (≥ 200 inspections)"
 #| warning: false
+
+# Require at least 200 inspections per city to keep results meaningful
 city_stats <- inspection_valid |>
   group_by(City_norm) |>
   summarise(
-    n_inspections = n(),
-    unsatisfactory_rate  = mean(unsatisfactory, na.rm = TRUE),
+    n_inspections       = n(),
+    unsatisfactory_rate = mean(unsatisfactory, na.rm = TRUE),
     .groups = "drop"
   ) |>
   filter(n_inspections >= 200) |>
   arrange(desc(unsatisfactory_rate)) |>
   slice_head(n = 20)
 
-ggplot(city_stats, aes(x = reorder(City_norm, unsatisfactory_rate), y = unsatisfactory_rate, fill = unsatisfactory_rate)) +
+ggplot(city_stats, aes(x = reorder(City_norm, unsatisfactory_rate),
+                       y = unsatisfactory_rate, fill = unsatisfactory_rate)) +
   geom_col(show.legend = FALSE) +
   coord_flip() +
   scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, 0.75)) +
@@ -202,17 +216,19 @@ ggplot(city_stats, aes(x = reorder(City_norm, unsatisfactory_rate), y = unsatisf
 ```{r}
 #| title: "ZIP Code Summary Table"
 #| warning: false
+
+# Interactive table. Users can sort and search across all King County ZIPs
 zip_table <- inspection_valid |>
   mutate(Zip.Code = as.character(Zip.Code)) |>
   group_by(Zip.Code) |>
   summarise(
-    Inspections  = n(),
-    Unsatisfactory       = sum(unsatisfactory, na.rm = TRUE),
+    Inspections           = n(),
+    Unsatisfactory        = sum(unsatisfactory, na.rm = TRUE),
     `Unsatisfactory Rate` = paste0(round(mean(unsatisfactory, na.rm = TRUE) * 100, 1), "%"),
-    `Avg Score`  = round(mean(Inspection.Score, na.rm = TRUE), 1),
+    `Avg Score`           = round(mean(Inspection.Score, na.rm = TRUE), 1),
     .groups = "drop"
   ) |>
-  filter(Inspections >= 50) |>
+  filter(Inspections >= 50) |>   # drop ZIPs with too few records
   arrange(desc(Unsatisfactory))
 
 datatable(zip_table,
@@ -230,20 +246,21 @@ and inspection volumes over time across all of King County.
 ```{r}
 #| title: "Annual Unsatisfactory Rate Over Time"
 #| warning: false
+
+# Restrict to 2010-2024, earlier years have sparse coverage
 annual <- inspection_valid |>
   filter(!is.na(Year), Year >= 2010, Year <= 2024) |>
   group_by(Year) |>
   summarise(
-    n_inspections = n(),
-    unsatisfactory_rate  = mean(unsatisfactory, na.rm = TRUE),
+    n_inspections       = n(),
+    unsatisfactory_rate = mean(unsatisfactory, na.rm = TRUE),
     .groups = "drop"
   )
 
 ggplot(annual, aes(x = Year, y = unsatisfactory_rate)) +
   geom_line(color = "#d62728", linewidth = 1.2) +
   geom_point(color = "#d62728", size = 2.5) +
-  scale_y_continuous(labels = scales::percent_format(accuracy = 1),
-                     limits = c(0, NA)) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1), limits = c(0, NA)) +
   scale_x_continuous(breaks = seq(2010, 2024, 2)) +
   labs(x = "Year", y = "Unsatisfactory Rate") +
   theme_minimal()
@@ -252,6 +269,8 @@ ggplot(annual, aes(x = Year, y = unsatisfactory_rate)) +
 ```{r}
 #| title: "Annual Inspection Volume"
 #| warning: false
+
+# Uses the same data frame computed in the chunk above
 ggplot(annual, aes(x = Year, y = n_inspections)) +
   geom_col(fill = "steelblue") +
   scale_y_continuous(labels = scales::comma) +
@@ -265,13 +284,15 @@ ggplot(annual, aes(x = Year, y = n_inspections)) +
 ```{r}
 #| title: "Unsatisfactory Rate by Month (All Years)"
 #| warning: false
+
+# Aggregate across all years to surface any seasonal inspection patterns
 monthly <- inspection_valid |>
   filter(!is.na(Inspection.Date)) |>
   mutate(Month = month(Inspection.Date, label = TRUE, abbr = TRUE)) |>
   group_by(Month) |>
   summarise(
-    n_inspections = n(),
-    unsatisfactory_rate  = mean(unsatisfactory, na.rm = TRUE),
+    n_inspections       = n(),
+    unsatisfactory_rate = mean(unsatisfactory, na.rm = TRUE),
     .groups = "drop"
   )
 
@@ -293,6 +314,8 @@ This page examines the proportion of individual **RED** (critical) vs **BLUE** (
 ```{r}
 #| content: valuebox
 #| title: "RED Violations"
+
+# Empty strings are present in Violation.Type for non-violation rows; == "RED" handles this safely
 red_v <- sum(inspection_clean$Violation.Type == "RED", na.rm = TRUE)
 list(icon = "exclamation-circle", color = "#d62728", value = format(red_v, big.mark = ","))
 ```
@@ -309,6 +332,8 @@ list(icon = "info-circle", color = "#1f77b4", value = format(blue_v, big.mark = 
 ```{r}
 #| title: "RED vs BLUE Violation Proportion by Establishment Category"
 #| warning: false
+
+# Exclude empty strings, meaning rows with no violation cited
 inspection_clean |>
   filter(!is.na(Violation.Type), Violation.Type != "", !is.na(Description)) |>
   mutate(Description = str_trunc(Description, 45)) |>
@@ -317,10 +342,11 @@ inspection_clean |>
   group_by(Description) |>
   mutate(
     total = sum(count),
-    prop  = count / total
+    prop  = count / total   # proportion within each category
   ) |>
   ungroup() |>
-  filter(total >= 500) |>
+  filter(total >= 500) |>   # drop categories with too few violations to be meaningful
+  # reorder bars so highest RED proportion appears at top
   ggplot(aes(x = reorder(Description, prop * (Violation.Type == "RED")),
              y = prop, fill = Violation.Type)) +
   geom_col() +
@@ -332,8 +358,10 @@ inspection_clean |>
 ```
 
 ```{r}
-#| title: "RED vs BLUE Proportion by City (≥ 200 violations)"
+#| title: "RED vs BLUE Proportion by City (>= 200 violations)"
 #| warning: false
+
+# slice_max on total keeps only the highest volume cities to avoid reduce y-axis
 inspection_clean |>
   filter(!is.na(Violation.Type), Violation.Type != "") |>
   group_by(City_norm, Violation.Type) |>
