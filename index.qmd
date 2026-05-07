@@ -57,7 +57,7 @@ We aim to understand:
 
 * How often inspections are unsatisfactory
 * Where in King County food safety issues are concentrated
-* What factors are associated with poor inspection outcomes
+* What factors most commonly contribute to high-risk and low-risk health violations
 
 A food safety rating of 0 is best. The classification of "Excellent", "Good",
 and "Okay" depends on both the rating, the Food Service Establishment Risk Level,
