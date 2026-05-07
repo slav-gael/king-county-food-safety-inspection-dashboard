@@ -70,7 +70,7 @@ and "Okay" depends on both the rating, the Food Service Establishment Risk Level
 and the timeframe of inspections <br> being taken into account. An in-depth explanation of what goes into a restaurant's
 rating can be found at the [King County Department of Public Health](https://kingcounty.gov/en/dept/dph/health-safety/food-safety/inspection-rating-system/rating-system).
 
-## Row {height=15%}
+## Row {height=30%}
 
 ```{r}
 #| content: valuebox
