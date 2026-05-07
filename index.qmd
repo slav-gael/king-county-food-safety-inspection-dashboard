@@ -62,8 +62,7 @@ We aim to understand:
 A food safety rating of 0 is best. The classification of "Excellent", "Good",
 and "Okay" depends on both the rating, the Food Service Establishment Risk Level,
 and the timeframe of inspections being taken into account. An in-depth explanation of what goes into a restaurant's
-rating can be found at the official King County department of public health 
-website found [here](https://kingcounty.gov/en/dept/dph/health-safety/food-safety/inspection-rating-system/rating-system).
+rating can be found at the [King County Department of Public Health](https://kingcounty.gov/en/dept/dph/health-safety/food-safety/inspection-rating-system/rating-system).
 
 ## Row {height=15%}
 
@@ -283,4 +282,76 @@ ggplot(monthly, aes(x = Month, y = unsatisfactory_rate, group = 1)) +
   labs(x = "Month", y = "Unsatisfactory Rate",
        caption = "Aggregated across all years in the dataset") +
   theme_minimal()
+```
+
+# Violation Type Breakdown
+
+This page examines the proportion of individual **RED** (critical) vs **BLUE** (non-critical) violations. Per King County, Red violations directly cause food-borne illnesses (improper temperatures, poor hygiene for example), while blue violations cover maintenance and sanitation.
+
+## Row {height=30%}
+
+```{r}
+#| content: valuebox
+#| title: "RED Violations"
+red_v <- sum(inspection_clean$Violation.Type == "RED", na.rm = TRUE)
+list(icon = "exclamation-circle", color = "#d62728", value = format(red_v, big.mark = ","))
+```
+
+```{r}
+#| content: valuebox
+#| title: "BLUE Violations"
+blue_v <- sum(inspection_clean$Violation.Type == "BLUE", na.rm = TRUE)
+list(icon = "info-circle", color = "#1f77b4", value = format(blue_v, big.mark = ","))
+```
+
+## Row
+
+```{r}
+#| title: "RED vs BLUE Violation Proportion by Establishment Category"
+#| warning: false
+inspection_clean |>
+  filter(!is.na(Violation.Type), Violation.Type != "", !is.na(Description)) |>
+  mutate(Description = str_trunc(Description, 45)) |>
+  group_by(Description, Violation.Type) |>
+  summarise(count = n(), .groups = "drop") |>
+  group_by(Description) |>
+  mutate(
+    total = sum(count),
+    prop  = count / total
+  ) |>
+  ungroup() |>
+  filter(total >= 500) |>
+  ggplot(aes(x = reorder(Description, prop * (Violation.Type == "RED")),
+             y = prop, fill = Violation.Type)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(values = c("RED" = "#d62728", "BLUE" = "#1f77b4")) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(x = NULL, y = "Proportion of Violations", fill = "Violation Type") +
+  theme_minimal(base_size = 10)
+```
+
+```{r}
+#| title: "RED vs BLUE Proportion by City (≥ 200 violations)"
+#| warning: false
+inspection_clean |>
+  filter(!is.na(Violation.Type), Violation.Type != "") |>
+  group_by(City_norm, Violation.Type) |>
+  summarise(count = n(), .groups = "drop") |>
+  group_by(City_norm) |>
+  mutate(
+    total = sum(count),
+    prop  = count / total
+  ) |>
+  ungroup() |>
+  filter(total >= 200) |>
+  slice_max(order_by = total, n = 40) |>
+  ggplot(aes(x = reorder(City_norm, prop * (Violation.Type == "RED")),
+             y = prop, fill = Violation.Type)) +
+  geom_col() +
+  coord_flip() +
+  scale_fill_manual(values = c("RED" = "#d62728", "BLUE" = "#1f77b4")) +
+  scale_y_continuous(labels = scales::percent_format(accuracy = 1)) +
+  labs(x = NULL, y = "Proportion of Violations", fill = "Violation Type") +
+  theme_minimal(base_size = 10)
 ```
