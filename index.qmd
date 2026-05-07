@@ -67,7 +67,7 @@ We aim to understand:
 
 A food safety rating of 0 is best. The classification of "Excellent", "Good",
 and "Okay" depends on both the rating, the Food Service Establishment Risk Level,
-and the timeframe of inspections being taken into account. An in-depth explanation of what goes into a restaurant's
+and the timeframe of inspections <br> being taken into account. An in-depth explanation of what goes into a restaurant's
 rating can be found at the [King County Department of Public Health](https://kingcounty.gov/en/dept/dph/health-safety/food-safety/inspection-rating-system/rating-system).
 
 ## Row {height=15%}
@@ -383,3 +383,38 @@ inspection_clean |>
   labs(x = NULL, y = "Proportion of Violations", fill = "Violation Type") +
   theme_minimal(base_size = 10)
 ```
+
+# Summary & Resources
+
+## Row
+
+### Key Findings
+
+Analysis of King County food establishment inspection data reveals several notable patterns
+in food safety across the region.
+
+**Overall Inspection Outcomes**  
+Unsatisfactory results are common; roughly half of all inspection records in the dataset
+are flagged as unsatisfactory. <br> However, this figure should be interpreted carefully, as each
+inspection visit can generate multiple rows (one per violation cited), <br> which inflates the
+raw rate. A single establishment visit with three violations counts three times toward the
+unsatisfactory total.
+
+**Geographic Concentration**  
+Food safety issues are not evenly distributed across King County. Cities including Bellevue,
+Kenmore, and Fall City show the highest <br> unsatisfactory rates among jurisdictions with a sufficient inspection 
+count. This may reflect differences in establishment density, inspection <br> frequency,
+or the mix of establishment types operating in each area rather than differences in food safety
+culture alone.
+
+**Trends Over Time**  
+Unsatisfactory rates have remained relatively stable from 2010 through 2024, with a
+notable dip <br> in inspection volume around 2020–2021 consistent with reduced inspection
+activity during the COVID 19 <br> pandemic. No sustained improvement or worsening trend is
+apparent in the data over this period.
+
+**Official King County Resources**
+
+- [King County Food Safety Program](https://kingcounty.gov/en/dept/dph/health-safety/food-safety)
+- [Inspection Rating System Explained](https://kingcounty.gov/en/dept/dph/health-safety/food-safety/inspection-rating-system/rating-system)
+- [Search Restaurant Inspection Results](https://kingcounty.gov/en/dept/dph/health-safety/food-safety/inspection-results)
