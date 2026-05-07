@@ -1,6 +1,8 @@
 ---
 title: "King County Food Establishment Safety"
-format: dashboard
+format: 
+  dashboard: 
+    scrolling: true
 embed-resources: true
 ---
 
@@ -70,7 +72,7 @@ and "Okay" depends on both the rating, the Food Service Establishment Risk Level
 and the timeframe of inspections <br> being taken into account. An in-depth explanation of what goes into a restaurant's
 rating can be found at the [King County Department of Public Health](https://kingcounty.gov/en/dept/dph/health-safety/food-safety/inspection-rating-system/rating-system).
 
-## Row {height=30%}
+## Row {height=20%}
 
 ```{r}
 #| content: valuebox
@@ -136,10 +138,13 @@ ggplot(result_counts, aes(x = reorder(result_group, n), y = n, fill = result_gro
 This page explores the geographic distribution of food inspection results across King County.
 Each point represents an individual inspection record — **red = unsatisfactory, green = satisfactory**.
 
+## Row {height=700px}
+
 ```{r}
 #| warning: false
 #| message: false
 #| title: "King County Inspection Outcomes Map"
+#| out-height: 650px
 
 set.seed(42)
 map_data <- inspection_valid |>
@@ -241,7 +246,7 @@ datatable(zip_table,
 How have inspection outcomes changed over the years? This page tracks unsatisfactory result rates 
 and inspection volumes over time across all of King County.
 
-## Row
+## Row {height=50%}
 
 ```{r}
 #| title: "Annual Unsatisfactory Rate Over Time"
@@ -279,7 +284,7 @@ ggplot(annual, aes(x = Year, y = n_inspections)) +
   theme_minimal()
 ```
 
-## Row
+## Row {height=100%}
 
 ```{r}
 #| title: "Unsatisfactory Rate by Month (All Years)"
